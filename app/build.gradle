@@ -1,6 +1,8 @@
 plugins { id 'com.android.application' }
+def appVersionCode = providers.gradleProperty('appVersionCode').getOrElse('1').toInteger()
+def appVersionName = providers.gradleProperty('appVersionName').getOrElse('1.0')
 android {
     namespace 'com.aimachine.school'
     compileSdk 35
-    defaultConfig { applicationId 'com.aimachine.school'; minSdk 23; targetSdk 35; versionCode (project.findProperty('versionCode') ?: '1').toInteger(); versionName project.findProperty('versionName') ?: '1.0' }
+    defaultConfig { applicationId 'com.aimachine.school'; minSdk 23; targetSdk 35; versionCode appVersionCode; versionName appVersionName }
 }
