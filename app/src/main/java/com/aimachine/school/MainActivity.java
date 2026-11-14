@@ -3,6 +3,10 @@ package com.aimachine.school;
 import android.app.Activity;
 import android.os.Bundle;
 import android.content.SharedPreferences;
+import android.content.*;
+import android.app.DownloadManager;
+import android.net.Uri;
+import android.os.Environment;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -12,12 +16,22 @@ import android.widget.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.*;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class MainActivity extends Activity {
   final int ink=Color.rgb(25,35,53), muted=Color.rgb(116,128,145), blue=Color.rgb(76,105,255), bg=Color.rgb(246,248,252);
   LinearLayout root, messages; EditText input; int grade=7; String model="Helio Gen 1 Flash", chatId="";
   SharedPreferences prefs; ArrayList<JSONObject> chats=new ArrayList<>(); JSONArray current=new JSONArray(); ScrollView scroller;
-  public void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("helio_chats",0);loadChats();newChat(false);render();}
+  public void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("helio_chats",0);loadChats();newChat(false);render();
+    registerReceiver(downloadReceiver,new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),Context.RECEIVER_NOT_EXPORTED);
+    checkForUpdate();
+  }
+  @Override protected void onResume(){super.onResume();String pending=prefs.getString("pending_update_url","");if(!pending.isEmpty()&&getPackageManager().canRequestPackageInstalls()){prefs.edit().remove("pending_update_url").apply();downloadUpdate(pending);}}
+  final BroadcastReceiver downloadReceiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){long id=i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID,-1);if(id!=prefs.getLong("update_download_id",-2))return;DownloadManager dm=(DownloadManager)getSystemService(DOWNLOAD_SERVICE);Uri uri=dm.getUriForDownloadedFile(id);if(uri==null){Toast.makeText(MainActivity.this,"Не удалось скачать обновление",Toast.LENGTH_LONG).show();return;}try{Intent install=new Intent(Intent.ACTION_VIEW);install.setDataAndType(uri,"application/vnd.android.package-archive");install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);startActivity(install);}catch(Exception e){Toast.makeText(MainActivity.this,"Скачивание завершено. Открой файл APK из уведомления загрузок.",Toast.LENGTH_LONG).show();}}};
+  void checkForUpdate(){new Thread(()->{HttpURLConnection conn=null;try{conn=(HttpURLConnection)new URL("https://api.github.com/repos/ooaoooa4562-beep/aimachine/releases/latest").openConnection();conn.setConnectTimeout(8000);conn.setReadTimeout(8000);conn.setRequestProperty("Accept","application/vnd.github+json");if(conn.getResponseCode()!=200)return;java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] buf=new byte[2048];int n;while((n=conn.getInputStream().read(buf))>0)out.write(buf,0,n);JSONObject release=new JSONObject(out.toString("UTF-8"));String tag=release.optString("tag_name");int remote=Integer.parseInt(tag.replaceAll("\\D",""));int local=getPackageManager().getPackageInfo(getPackageName(),0).versionCode;if(remote<=local)return;JSONArray assets=release.optJSONArray("assets");if(assets==null)return;String apk="";for(int i=0;i<assets.length();i++){JSONObject a=assets.getJSONObject(i);if(a.optString("name").endsWith(".apk")){apk=a.optString("browser_download_url");break;}}if(apk.isEmpty())return;String url=apk;runOnUiThread(()->new android.app.AlertDialog.Builder(this).setTitle("Доступно обновление").setMessage("Вышла новая версия Helio. Скачать и установить?").setPositiveButton("Обновить",(d,w)->prepareUpdate(url)).setNegativeButton("Позже",null).show());}catch(Exception ignored){}finally{if(conn!=null)conn.disconnect();}}).start();}
+  void prepareUpdate(String url){if(!getPackageManager().canRequestPackageInstalls()){prefs.edit().putString("pending_update_url",url).apply();new android.app.AlertDialog.Builder(this).setTitle("Разреши установку обновлений").setMessage("Android просит разрешить установку приложений, скачанных этим приложением. После разрешения вернись сюда — загрузка начнётся автоматически.").setPositiveButton("Настройки",(d,w)->{Intent i=new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName()));startActivity(i);}).setNegativeButton("Отмена",(d,w)->prefs.edit().remove("pending_update_url").apply()).show();return;}downloadUpdate(url);}
+  void downloadUpdate(String url){try{DownloadManager dm=(DownloadManager)getSystemService(DOWNLOAD_SERVICE);DownloadManager.Request req=new DownloadManager.Request(Uri.parse(url));req.setTitle("Обновление Helio");req.setDescription("Скачивание новой версии");req.setMimeType("application/vnd.android.package-archive");req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);req.setDestinationInExternalFilesDir(this,Environment.DIRECTORY_DOWNLOADS,"helio-update.apk");long id=dm.enqueue(req);prefs.edit().putLong("update_download_id",id).apply();Toast.makeText(this,"Скачиваю обновление…",Toast.LENGTH_LONG).show();}catch(Exception e){Toast.makeText(this,"Не удалось начать загрузку обновления",Toast.LENGTH_LONG).show();}}
   void render(){getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(Color.WHITE);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
     root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(bg);setContentView(root);
     LinearLayout top=new LinearLayout(this);top.setPadding(14,12,14,10);top.setGravity(Gravity.CENTER_VERTICAL);top.setBackgroundColor(Color.WHITE);root.addView(top);
