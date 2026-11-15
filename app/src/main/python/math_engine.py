@@ -131,6 +131,10 @@ def solve(raw, grade=7, model="Helio Gen 1 Flash"):
         result = sp.simplify(expr)
         exact = sp.sstr(result)
         approx = sp.N(result, 10)
+        if model == "Helio Gen 1 Pro":
+            if result.is_number and approx != result:
+                return f"Сначала выполняем действия по порядку и упрощаем выражение.\nТочный результат: {exact}\nПриближённо: {approx}"
+            return f"Упрощаем выражение:\n{sp.sstr(expr)} = {exact}\nПроверка выполнена символьным движком SymPy."
         if result.is_number and approx != result:
             return f"{sp.sstr(expr)} = {exact} ≈ {approx}"
         return f"Упрощаем выражение:\n{sp.sstr(expr)} = {exact}"
