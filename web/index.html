@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f8fc">
-  <meta name="description" content="Helio — школьный помощник с голосовым вводом и решателем математики.">
+  <meta name="description" content="Helio — школьный ИИ-помощник с голосовым вводом и точными математическими вычислениями.">
   <title>Helio — школьный помощник</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
@@ -22,8 +22,14 @@
       <div class="side-label">НЕДАВНИЕ</div>
       <div class="chat-list" id="chatList"></div>
       <div class="side-bottom">
-        <span class="status-dot" aria-hidden="true"></span>
-        <span id="engineStatus">SymPy загрузится при первой задаче</span>
+        <div class="status-line">
+          <span class="status-dot" id="sympyDot" aria-hidden="true"></span>
+          <span id="engineStatus" aria-live="polite">SymPy загрузится при первой задаче</span>
+        </div>
+        <div class="status-line">
+          <span class="status-dot" id="modelDot" aria-hidden="true"></span>
+          <span id="modelStatus" aria-live="polite">ИИ загрузится при первом сообщении</span>
+        </div>
       </div>
     </aside>
 
@@ -37,8 +43,8 @@
           <label class="select-wrap model-select">
             <span class="select-icon" aria-hidden="true">✦</span>
             <select id="modelSelect" aria-label="Режим объяснения">
-              <option>Helio Gen 1 Flash</option>
-              <option>Helio Gen 1 Pro</option>
+              <option value="Helio Gen 1 Flash" title="Qwen3 0.6B · загрузка около 570 МБ">Helio Gen 1 Flash</option>
+              <option value="Helio Gen 1 Pro" title="Qwen3 1.7B · загрузка около 1,43 ГБ">Helio Gen 1 Pro</option>
             </select>
             <span class="chevron" aria-hidden="true">⌄</span>
           </label>
@@ -68,10 +74,10 @@
           </button>
         </div>
         <div class="voice-status" id="voiceStatus" role="status" aria-live="polite" hidden></div>
-        <div class="composer-note">Голос: русский · Распознанный текст можно поправить перед отправкой</div>
+        <div class="composer-note">Голосовой ввод · Flash загружает около 570 МБ, Pro — около 1,43 ГБ при первом запуске</div>
       </form>
     </main>
   </div>
-  <script src="./app.js"></script>
+  <script type="module" src="./app.js"></script>
 </body>
 </html>
