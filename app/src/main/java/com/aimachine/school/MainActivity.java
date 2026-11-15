@@ -7,6 +7,7 @@ import android.content.*;
 import android.app.DownloadManager;
 import android.net.Uri;
 import android.os.Environment;
+import android.speech.RecognizerIntent;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -25,7 +26,7 @@ import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
   final int ink=Color.rgb(25,35,53), muted=Color.rgb(116,128,145), blue=Color.rgb(76,105,255), bg=Color.rgb(246,248,252);
-  LinearLayout root, messages; EditText input; int grade=7; String model="Helio Gen 1 Flash", chatId="";
+  LinearLayout root, messages; EditText input; int grade=7, REQUEST_VOICE_INPUT=73; String model="Helio Gen 1 Flash", chatId="";
   SharedPreferences prefs; ArrayList<JSONObject> chats=new ArrayList<>(); JSONArray current=new JSONArray(); ScrollView scroller;
   final ExecutorService mathExecutor=Executors.newSingleThreadExecutor();
   public void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("helio_chats",0);loadChats();newChat(false);render();
@@ -33,31 +34,52 @@ public class MainActivity extends Activity {
     checkForUpdate();
   }
   @Override protected void onResume(){super.onResume();String pending=prefs.getString("pending_update_url","");if(!pending.isEmpty()&&getPackageManager().canRequestPackageInstalls()){prefs.edit().remove("pending_update_url").apply();downloadUpdate(pending);}}
+  @Override protected void onActivityResult(int requestCode,int resultCode,Intent data){super.onActivityResult(requestCode,resultCode,data);if(requestCode!=REQUEST_VOICE_INPUT||resultCode!=RESULT_OK||data==null)return;ArrayList<String> results=data.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS);if(results==null||results.isEmpty())return;String recognized=results.get(0).trim();if(recognized.isEmpty())return;String existing=input.getText().toString().trim();input.setText(existing.isEmpty()?recognized:existing+" "+recognized);input.setSelection(input.getText().length());}
   final BroadcastReceiver downloadReceiver=new BroadcastReceiver(){public void onReceive(Context c,Intent i){long id=i.getLongExtra(DownloadManager.EXTRA_DOWNLOAD_ID,-1);if(id!=prefs.getLong("update_download_id",-2))return;DownloadManager dm=(DownloadManager)getSystemService(DOWNLOAD_SERVICE);Uri uri=dm.getUriForDownloadedFile(id);if(uri==null){Toast.makeText(MainActivity.this,"Не удалось скачать обновление",Toast.LENGTH_LONG).show();return;}try{Intent install=new Intent(Intent.ACTION_VIEW);install.setDataAndType(uri,"application/vnd.android.package-archive");install.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_ACTIVITY_NEW_TASK);startActivity(install);}catch(Exception e){Toast.makeText(MainActivity.this,"Скачивание завершено. Открой файл APK из уведомления загрузок.",Toast.LENGTH_LONG).show();}}};
   void checkForUpdate(){new Thread(()->{HttpURLConnection conn=null;try{conn=(HttpURLConnection)new URL("https://api.github.com/repos/ooaoooa4562-beep/aimachine/releases/latest").openConnection();conn.setConnectTimeout(8000);conn.setReadTimeout(8000);conn.setRequestProperty("Accept","application/vnd.github+json");if(conn.getResponseCode()!=200)return;java.io.ByteArrayOutputStream out=new java.io.ByteArrayOutputStream();byte[] buf=new byte[2048];int n;while((n=conn.getInputStream().read(buf))>0)out.write(buf,0,n);JSONObject release=new JSONObject(out.toString("UTF-8"));String tag=release.optString("tag_name");int remote=Integer.parseInt(tag.replaceAll("\\D",""));int local=getPackageManager().getPackageInfo(getPackageName(),0).versionCode;if(remote<=local)return;JSONArray assets=release.optJSONArray("assets");if(assets==null)return;String apk="";for(int i=0;i<assets.length();i++){JSONObject a=assets.getJSONObject(i);if(a.optString("name").endsWith(".apk")){apk=a.optString("browser_download_url");break;}}if(apk.isEmpty())return;String url=apk;runOnUiThread(()->new android.app.AlertDialog.Builder(this).setTitle("Доступно обновление").setMessage("Вышла новая версия Helio. Скачать и установить?").setPositiveButton("Обновить",(d,w)->prepareUpdate(url)).setNegativeButton("Позже",null).show());}catch(Exception ignored){}finally{if(conn!=null)conn.disconnect();}}).start();}
   void prepareUpdate(String url){if(!getPackageManager().canRequestPackageInstalls()){prefs.edit().putString("pending_update_url",url).apply();new android.app.AlertDialog.Builder(this).setTitle("Разреши установку обновлений").setMessage("Android просит разрешить установку приложений, скачанных этим приложением. После разрешения вернись сюда — загрузка начнётся автоматически.").setPositiveButton("Настройки",(d,w)->{Intent i=new Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,Uri.parse("package:"+getPackageName()));startActivity(i);}).setNegativeButton("Отмена",(d,w)->prefs.edit().remove("pending_update_url").apply()).show();return;}downloadUpdate(url);}
   void downloadUpdate(String url){try{DownloadManager dm=(DownloadManager)getSystemService(DOWNLOAD_SERVICE);DownloadManager.Request req=new DownloadManager.Request(Uri.parse(url));req.setTitle("Обновление Helio");req.setDescription("Скачивание новой версии");req.setMimeType("application/vnd.android.package-archive");req.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);req.setDestinationInExternalFilesDir(this,Environment.DIRECTORY_DOWNLOADS,"helio-update.apk");long id=dm.enqueue(req);prefs.edit().putLong("update_download_id",id).apply();Toast.makeText(this,"Скачиваю обновление…",Toast.LENGTH_LONG).show();}catch(Exception e){Toast.makeText(this,"Не удалось начать загрузку обновления",Toast.LENGTH_LONG).show();}}
-  void render(){getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(Color.WHITE);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
+  void render(){
+    getWindow().setStatusBarColor(bg);getWindow().setNavigationBarColor(Color.WHITE);getWindow().getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR);
     root=new LinearLayout(this);root.setOrientation(1);root.setBackgroundColor(bg);setContentView(root);
-    LinearLayout top=new LinearLayout(this);top.setPadding(14,12,14,10);top.setGravity(Gravity.CENTER_VERTICAL);top.setBackgroundColor(Color.WHITE);root.addView(top);
-    TextView history=label("☰",23,ink,true);top.addView(history);history.setOnClickListener(v->showHistory());
-    TextView title=label("  Helio",20,ink,true);top.addView(title,new LinearLayout.LayoutParams(0,-2,1));
-    TextView mode=label(model.equals("Helio Gen 1 Flash")?"⚡ Flash⌄":"✦ Pro⌄",13,blue,true);mode.setPadding(11,9,11,9);mode.setBackground(round(Color.rgb(239,242,255),18));top.addView(mode);mode.setOnClickListener(v->chooseModel(mode));
-    TextView gradeBtn=label(grade+" класс⌄",13,ink,true);gradeBtn.setPadding(10,9,8,9);top.addView(gradeBtn);gradeBtn.setOnClickListener(v->chooseGrade(gradeBtn));
-    TextView fresh=label("＋",24,blue,true);fresh.setPadding(10,0,4,0);top.addView(fresh);fresh.setOnClickListener(v->newChat(true));
-    scroller=new ScrollView(this);root.addView(scroller,new LinearLayout.LayoutParams(-1,0,1));messages=new LinearLayout(this);messages.setPadding(18,16,18,12);messages.setOrientation(1);scroller.addView(messages);
-    if(current.length()==0){TextView hello=label("Привет! Я Helio — помощник по математике. Напиши пример, уравнение или вопрос по теме, и я разберу его по шагам.",16,ink,false);hello.setPadding(16,16,16,16);hello.setBackground(round(Color.WHITE,20));messages.addView(hello);
-      TextView cap=label("ПОПРОБУЙ",11,muted,true);cap.setPadding(2,20,0,9);messages.addView(cap);
-      for(String s:new String[]{"Реши 3x + 5 = 20","Вычисли (12 + 8) / 4","Площадь круга радиус 5"}){TextView c=label(s+"   →",14,ink,false);c.setPadding(14,12,14,12);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=8;c.setBackground(round(Color.WHITE,16));messages.addView(c,lp);c.setOnClickListener(v->{input.setText(s);send();});}}
-    else for(int i=0;i<current.length();i++){JSONObject m=current.optJSONObject(i);if(m!=null)addBubble(m.optString("text"),m.optBoolean("user"),false);}
-    LinearLayout composer=new LinearLayout(this);composer.setPadding(13,10,13,15);composer.setGravity(Gravity.CENTER_VERTICAL);composer.setBackgroundColor(Color.WHITE);root.addView(composer);
-    input=new EditText(this);input.setSingleLine(false);input.setMinLines(1);input.setMaxLines(4);input.setHint("Напиши сообщение...");input.setTextSize(15);input.setPadding(13,10,10,10);input.setBackground(round(bg,18));composer.addView(input,new LinearLayout.LayoutParams(0,-2,1));
-    TextView send=label("➤",20,Color.WHITE,true);send.setGravity(Gravity.CENTER);send.setBackground(round(blue,18));LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(46,46);sp.leftMargin=8;composer.addView(send,sp);send.setOnClickListener(v->send()); }
+
+    LinearLayout top=new LinearLayout(this);top.setPadding(12,9,12,9);top.setGravity(Gravity.CENTER_VERTICAL);top.setBackgroundColor(Color.WHITE);top.setElevation(2);root.addView(top);
+    TextView history=label("☰",22,ink,true);history.setGravity(Gravity.CENTER);history.setContentDescription("Открыть историю чатов");history.setBackground(round(bg,14));LinearLayout.LayoutParams hp=new LinearLayout.LayoutParams(42,42);hp.rightMargin=8;top.addView(history,hp);history.setOnClickListener(v->showHistory());
+    TextView title=label("Helio",20,ink,true);top.addView(title,new LinearLayout.LayoutParams(0,-2,1));
+    TextView mode=label(model.equals("Helio Gen 1 Flash")?"⚡ Flash⌄":"✦ Pro⌄",13,blue,true);mode.setGravity(Gravity.CENTER);mode.setMinHeight(40);mode.setPadding(11,8,11,8);mode.setContentDescription("Выбрать режим объяснения");mode.setBackground(round(Color.rgb(239,242,255),18));top.addView(mode);mode.setOnClickListener(v->chooseModel(mode));
+    TextView gradeBtn=label(grade+" класс⌄",13,ink,true);gradeBtn.setGravity(Gravity.CENTER);gradeBtn.setMinHeight(40);gradeBtn.setPadding(10,8,9,8);gradeBtn.setContentDescription("Выбрать класс");gradeBtn.setBackground(round(bg,14));LinearLayout.LayoutParams gp=new LinearLayout.LayoutParams(-2,-2);gp.leftMargin=5;top.addView(gradeBtn,gp);gradeBtn.setOnClickListener(v->chooseGrade(gradeBtn));
+    TextView fresh=label("＋",25,blue,true);fresh.setGravity(Gravity.CENTER);fresh.setContentDescription("Создать новый чат");fresh.setBackground(round(Color.rgb(239,242,255),14));LinearLayout.LayoutParams fp=new LinearLayout.LayoutParams(42,42);fp.leftMargin=5;top.addView(fresh,fp);fresh.setOnClickListener(v->newChat(true));
+
+    scroller=new ScrollView(this);scroller.setFillViewport(true);root.addView(scroller,new LinearLayout.LayoutParams(-1,0,1));messages=new LinearLayout(this);messages.setPadding(16,16,16,12);messages.setOrientation(1);scroller.addView(messages);
+    if(current.length()==0){
+      TextView hello=label("Привет! Я Helio",24,ink,true);hello.setGravity(Gravity.CENTER);hello.setPadding(14,18,14,4);messages.addView(hello);
+      TextView description=label("Напиши вопрос или надиктуй его. Помогу с математикой и школьными темами.",15,muted,false);description.setGravity(Gravity.CENTER);description.setPadding(16,0,16,18);messages.addView(description);
+      TextView cap=label("ПОПРОБУЙ",11,muted,true);cap.setPadding(2,8,0,9);messages.addView(cap);
+      for(String s:new String[]{"Реши 3x + 5 = 20","Вычисли (12 + 8) / 4","Площадь круга, радиус 5"}){
+        TextView c=label(s+"   →",14,ink,false);c.setPadding(14,13,14,13);c.setBackground(round(Color.WHITE,16));c.setContentDescription(s);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=8;messages.addView(c,lp);c.setOnClickListener(v->{input.setText(s);send();});
+      }
+    }else{
+      for(int i=0;i<current.length();i++){JSONObject m=current.optJSONObject(i);if(m!=null)addBubble(m.optString("text"),m.optBoolean("user"),false);}
+    }
+
+    LinearLayout composer=new LinearLayout(this);composer.setPadding(12,9,12,12);composer.setGravity(Gravity.CENTER_VERTICAL);composer.setBackgroundColor(Color.WHITE);composer.setElevation(8);root.addView(composer);
+    input=new EditText(this);input.setSingleLine(false);input.setMinLines(1);input.setMaxLines(4);input.setMinHeight(46);input.setHint("Напиши или надиктуй сообщение…");input.setTextSize(15);input.setPadding(14,10,10,10);input.setBackground(round(bg,17));input.setContentDescription("Текст сообщения");composer.addView(input,new LinearLayout.LayoutParams(0,-2,1));
+    TextView voice=label("🎙",19,muted,true);voice.setGravity(Gravity.CENTER);voice.setContentDescription("Надиктовать сообщение");voice.setBackground(round(bg,15));LinearLayout.LayoutParams vp=new LinearLayout.LayoutParams(46,46);vp.leftMargin=7;composer.addView(voice,vp);voice.setOnClickListener(v->startVoiceInput());
+    TextView send=label("➤",20,Color.WHITE,true);send.setGravity(Gravity.CENTER);send.setContentDescription("Отправить сообщение");send.setBackground(round(blue,15));LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(46,46);sp.leftMargin=7;composer.addView(send,sp);send.setOnClickListener(v->send());
+  }
   void chooseModel(TextView button){new android.app.AlertDialog.Builder(this).setTitle("Режим помощника").setItems(new String[]{"Helio Gen 1 Flash — быстрее","Helio Gen 1 Pro — подробные объяснения"},(d,w)->{model=w==0?"Helio Gen 1 Flash":"Helio Gen 1 Pro";button.setText(w==0?"⚡ Flash⌄":"✦ Pro⌄");}).show();}
   void chooseGrade(TextView button){String[] a=new String[11];for(int i=0;i<11;i++)a[i]=(i+1)+" класс";new android.app.AlertDialog.Builder(this).setTitle("Выбери класс").setItems(a,(d,w)->{grade=w+1;button.setText(grade+" класс⌄");}).show();}
   void send(){String q=input.getText().toString().trim();if(q.isEmpty())return;input.setText("");addBubble(q,true,true);saveChats();scroller.post(()->scroller.fullScroll(View.FOCUS_DOWN));mathExecutor.execute(()->{String answer=solve(q);runOnUiThread(()->{addBubble(answer,false,true);saveChats();scroller.post(()->scroller.fullScroll(View.FOCUS_DOWN));});});}
-  void addBubble(String s,boolean user,boolean persist){TextView t=label(s,15,user?Color.WHITE:ink,false);t.setPadding(14,12,14,12);t.setBackground(round(user?blue:Color.WHITE,18));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=9;p.leftMargin=user?34:0;p.rightMargin=user?0:18;messages.addView(t,p);if(persist){try{JSONObject m=new JSONObject();m.put("text",s);m.put("user",user);current.put(m);}catch(Exception ignored){}}}
-  String solve(String raw){String q=raw.trim(),lower=raw.toLowerCase(Locale.ROOT);
+  void addBubble(String s,boolean user,boolean persist){
+    LinearLayout row=new LinearLayout(this);row.setOrientation(LinearLayout.HORIZONTAL);row.setGravity(user?Gravity.END:Gravity.START);LinearLayout.LayoutParams rowParams=new LinearLayout.LayoutParams(-1,-2);rowParams.topMargin=10;messages.addView(row,rowParams);
+    if(!user){TextView avatar=label("✦",14,blue,true);avatar.setGravity(Gravity.CENTER);avatar.setBackground(round(Color.rgb(235,239,255),13));LinearLayout.LayoutParams avp=new LinearLayout.LayoutParams(30,30);avp.rightMargin=7;row.addView(avatar,avp);}
+    TextView t=label(s,15,user?Color.WHITE:ink,false);t.setPadding(14,12,14,12);t.setBackground(round(user?blue:Color.WHITE,18));t.setMaxWidth((int)(getResources().getDisplayMetrics().widthPixels*.82f));row.addView(t,new LinearLayout.LayoutParams(-2,-2));
+    if(persist){try{JSONObject m=new JSONObject();m.put("text",s);m.put("user",user);current.put(m);}catch(Exception ignored){}}
+  }
+  void startVoiceInput(){
+    Intent intent=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE,"ru-RU");intent.putExtra(RecognizerIntent.EXTRA_PROMPT,"Продиктуй сообщение для Helio");intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS,1);
+    try{startActivityForResult(intent,REQUEST_VOICE_INPUT);}catch(ActivityNotFoundException e){Toast.makeText(this,"На устройстве нет службы распознавания речи",Toast.LENGTH_LONG).show();}
+  }  String solve(String raw){String q=raw.trim(),lower=raw.toLowerCase(Locale.ROOT);
     String chat=smallTalk(lower);if(chat!=null)return chat;
     if(q.matches(".*[0-9].*")||q.matches(".*[=+*/^()√π²³×÷·].*")||lower.matches(".*(реши|вычисли|посчитай|производн|интеграл|площад|периметр|объ[её]м|радиус|диаметр|треугольник|квадрат|кубоид|параллелепипед).*")){
       try{PyObject result=Python.getInstance().getModule("math_engine").callAttr("solve",q,grade,model);if(result!=null)return result.toString();}catch(Exception e){return "Не получилось запустить SymPy. Попробуй ещё раз или введи задачу короче.";}

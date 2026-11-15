@@ -4,41 +4,71 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#f7f8fc">
-  <meta name="description" content="Helio — школьный помощник по математике на SymPy.">
-  <title>Helio — математический помощник</title>
+  <meta name="description" content="Helio — школьный помощник с голосовым вводом и решателем математики.">
+  <title>Helio — школьный помощник</title>
   <link rel="manifest" href="./manifest.webmanifest">
   <link rel="stylesheet" href="./styles.css">
   <script src="https://cdn.jsdelivr.net/pyodide/v314.0.8/full/pyodide.js"></script>
 </head>
 <body>
   <div class="app-shell">
-    <aside class="sidebar" id="sidebar">
-      <div class="brand"><span class="brand-mark">✦</span><span>Helio</span><button class="icon-button close-sidebar" id="closeSidebar" aria-label="Закрыть меню">×</button></div>
-      <button class="new-chat" id="newChat"><span>＋</span> Новый чат</button>
+    <aside class="sidebar" id="sidebar" aria-label="История чатов">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">✦</span>
+        <span>Helio</span>
+        <button class="icon-button close-sidebar" id="closeSidebar" type="button" aria-label="Закрыть историю">×</button>
+      </div>
+      <button class="new-chat" id="newChat" type="button"><span aria-hidden="true">＋</span> Новый чат</button>
       <div class="side-label">НЕДАВНИЕ</div>
       <div class="chat-list" id="chatList"></div>
-      <div class="side-bottom"><span class="status-dot"></span><span id="engineStatus">Подключаю SymPy…</span></div>
+      <div class="side-bottom">
+        <span class="status-dot" aria-hidden="true"></span>
+        <span id="engineStatus">SymPy загрузится при первой задаче</span>
+      </div>
     </aside>
-    <div class="scrim" id="scrim"></div>
+
+    <div class="scrim" id="scrim" aria-hidden="true"></div>
+
     <main class="main">
       <header class="topbar">
-        <button class="icon-button menu-button" id="menuButton" aria-label="Открыть историю">☰</button>
-        <div class="mobile-brand"><span class="brand-mark">✦</span> Helio</div>
+        <button class="icon-button menu-button" id="menuButton" type="button" aria-label="Открыть историю чатов">☰</button>
+        <div class="mobile-brand"><span class="brand-mark" aria-hidden="true">✦</span> Helio</div>
         <div class="top-controls">
-          <label class="select-wrap model-select"><span class="select-icon">✦</span><select id="modelSelect" aria-label="Режим объяснения"><option>Helio Gen 1 Flash</option><option>Helio Gen 1 Pro</option></select><span class="chevron">⌄</span></label>
-          <label class="select-wrap grade-select"><select id="gradeSelect" aria-label="Класс"></select><span class="chevron">⌄</span></label>
-          <button class="icon-button desktop-new" id="desktopNew" aria-label="Новый чат">＋</button>
+          <label class="select-wrap model-select">
+            <span class="select-icon" aria-hidden="true">✦</span>
+            <select id="modelSelect" aria-label="Режим объяснения">
+              <option>Helio Gen 1 Flash</option>
+              <option>Helio Gen 1 Pro</option>
+            </select>
+            <span class="chevron" aria-hidden="true">⌄</span>
+          </label>
+          <label class="select-wrap grade-select">
+            <select id="gradeSelect" aria-label="Класс"></select>
+            <span class="chevron" aria-hidden="true">⌄</span>
+          </label>
+          <button class="icon-button desktop-new" id="desktopNew" type="button" aria-label="Создать новый чат">＋</button>
         </div>
       </header>
-      <section class="conversation" id="conversation" aria-live="polite"></section>
+
+      <section class="conversation" id="conversation" aria-live="polite" aria-label="Переписка"></section>
+
       <form class="composer-wrap" id="composer">
-        <div class="suggestions">
+        <div class="suggestions" id="suggestions" aria-label="Примеры запросов">
           <button type="button" class="suggestion">2214÷(12²+15²)+36</button>
           <button type="button" class="suggestion">Реши 3x + 5 = 20</button>
-          <button type="button" class="suggestion">sin 30°</button>
+          <button type="button" class="suggestion">Площадь круга, радиус 5</button>
         </div>
-        <div class="composer"><textarea id="prompt" rows="1" placeholder="Напиши задачу или сообщение…" aria-label="Сообщение"></textarea><button class="send-button" id="sendButton" aria-label="Отправить">↑</button></div>
-        <div class="composer-note">SymPy считает прямо в браузере · первое включение может занять немного времени</div>
+        <div class="composer">
+          <textarea id="prompt" rows="1" placeholder="Напиши вопрос или продиктуй его…" aria-label="Сообщение"></textarea>
+          <button class="voice-button" id="voiceButton" type="button" aria-label="Надиктовать сообщение" aria-pressed="false" title="Голосовой ввод">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 14a3 3 0 0 0 3-3V6a3 3 0 0 0-6 0v5a3 3 0 0 0 3 3Z"/><path d="M19 11a7 7 0 0 1-14 0M12 18v4m-4 0h8"/></svg>
+          </button>
+          <button class="send-button" id="sendButton" type="submit" aria-label="Отправить сообщение">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6"/></svg>
+          </button>
+        </div>
+        <div class="voice-status" id="voiceStatus" role="status" aria-live="polite" hidden></div>
+        <div class="composer-note">Голос: русский · Распознанный текст можно поправить перед отправкой</div>
       </form>
     </main>
   </div>
