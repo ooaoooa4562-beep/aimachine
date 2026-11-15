@@ -60,7 +60,7 @@ public class MainActivity extends Activity {
   String solve(String raw){String q=raw.trim(),lower=raw.toLowerCase(Locale.ROOT);
     String chat=smallTalk(lower);if(chat!=null)return chat;
     if(q.matches(".*[0-9].*")||q.matches(".*[=+*/^()√π²³×÷·].*")||lower.matches(".*(реши|вычисли|посчитай|производн|интеграл|площад|периметр|объ[её]м|радиус|диаметр|треугольник|квадрат|кубоид|параллелепипед).*")){
-      try{PyObject result=Python.getInstance().getModule("math_engine").callAttr("solve",q,grade,model);if(!result.isNone())return result.toString();}catch(Exception e){return "Не получилось запустить SymPy. Попробуй ещё раз или введи задачу короче.";}
+      try{PyObject result=Python.getInstance().getModule("math_engine").callAttr("solve",q,grade,model);if(result!=null)return result.toString();}catch(Exception e){return "Не получилось запустить SymPy. Попробуй ещё раз или введи задачу короче.";}
     }
     try{if(lower.matches(".*(площад|периметр|объ[её]м|радиус|диаметр|сторон).*")){String g=geometry(lower);if(g!=null)return g;}
       if(q.contains("=")&&q.matches(".*[xX].*"))return solveEquation(q);
