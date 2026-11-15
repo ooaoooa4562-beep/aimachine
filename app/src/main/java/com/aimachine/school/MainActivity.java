@@ -15,14 +15,19 @@ import android.view.View;
 import android.widget.*;
 import org.json.JSONArray;
 import org.json.JSONObject;
+import com.chaquo.python.Python;
+import com.chaquo.python.PyObject;
 import java.util.*;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class MainActivity extends Activity {
   final int ink=Color.rgb(25,35,53), muted=Color.rgb(116,128,145), blue=Color.rgb(76,105,255), bg=Color.rgb(246,248,252);
   LinearLayout root, messages; EditText input; int grade=7; String model="Helio Gen 1 Flash", chatId="";
   SharedPreferences prefs; ArrayList<JSONObject> chats=new ArrayList<>(); JSONArray current=new JSONArray(); ScrollView scroller;
+  final ExecutorService mathExecutor=Executors.newSingleThreadExecutor();
   public void onCreate(Bundle b){super.onCreate(b);prefs=getSharedPreferences("helio_chats",0);loadChats();newChat(false);render();
     registerReceiver(downloadReceiver,new IntentFilter(DownloadManager.ACTION_DOWNLOAD_COMPLETE),Context.RECEIVER_NOT_EXPORTED);
     checkForUpdate();
@@ -50,10 +55,13 @@ public class MainActivity extends Activity {
     TextView send=label("➤",20,Color.WHITE,true);send.setGravity(Gravity.CENTER);send.setBackground(round(blue,18));LinearLayout.LayoutParams sp=new LinearLayout.LayoutParams(46,46);sp.leftMargin=8;composer.addView(send,sp);send.setOnClickListener(v->send()); }
   void chooseModel(TextView button){new android.app.AlertDialog.Builder(this).setTitle("Режим помощника").setItems(new String[]{"Helio Gen 1 Flash — быстрее","Helio Gen 1 Pro — подробные объяснения"},(d,w)->{model=w==0?"Helio Gen 1 Flash":"Helio Gen 1 Pro";button.setText(w==0?"⚡ Flash⌄":"✦ Pro⌄");}).show();}
   void chooseGrade(TextView button){String[] a=new String[11];for(int i=0;i<11;i++)a[i]=(i+1)+" класс";new android.app.AlertDialog.Builder(this).setTitle("Выбери класс").setItems(a,(d,w)->{grade=w+1;button.setText(grade+" класс⌄");}).show();}
-  void send(){String q=input.getText().toString().trim();if(q.isEmpty())return;input.setText("");addBubble(q,true,true);addBubble(solve(q),false,true);saveChats();scroller.post(()->scroller.fullScroll(View.FOCUS_DOWN));}
+  void send(){String q=input.getText().toString().trim();if(q.isEmpty())return;input.setText("");addBubble(q,true,true);saveChats();scroller.post(()->scroller.fullScroll(View.FOCUS_DOWN));mathExecutor.execute(()->{String answer=solve(q);runOnUiThread(()->{addBubble(answer,false,true);saveChats();scroller.post(()->scroller.fullScroll(View.FOCUS_DOWN));});});}
   void addBubble(String s,boolean user,boolean persist){TextView t=label(s,15,user?Color.WHITE:ink,false);t.setPadding(14,12,14,12);t.setBackground(round(user?blue:Color.WHITE,18));LinearLayout.LayoutParams p=new LinearLayout.LayoutParams(-1,-2);p.topMargin=9;p.leftMargin=user?34:0;p.rightMargin=user?0:18;messages.addView(t,p);if(persist){try{JSONObject m=new JSONObject();m.put("text",s);m.put("user",user);current.put(m);}catch(Exception ignored){}}}
   String solve(String raw){String q=raw.trim(),lower=raw.toLowerCase(Locale.ROOT);
     String chat=smallTalk(lower);if(chat!=null)return chat;
+    if(q.matches(".*[0-9].*")||q.matches(".*[=+*/^()√π²³×÷·].*")||lower.matches(".*(реши|вычисли|посчитай|производн|интеграл|площад|периметр|объ[её]м|радиус|диаметр|треугольник|квадрат|кубоид|параллелепипед).*")){
+      try{PyObject result=Python.getInstance().getModule("math_engine").callAttr("solve",q,grade,model);if(!result.isNone())return result.toString();}catch(Exception e){return "Не получилось запустить SymPy. Попробуй ещё раз или введи задачу короче.";}
+    }
     try{if(lower.matches(".*(площад|периметр|объ[её]м|радиус|диаметр|сторон).*")){String g=geometry(lower);if(g!=null)return g;}
       if(q.contains("=")&&q.matches(".*[xX].*"))return solveEquation(q);
       String expr=q.replaceAll("(?i)^(реши|вычисли|посчитай|найди|сколько будет)\\s*[: ]*","").replace("×","*").replace("÷","/").replace("·","*").replace("⋅","*").replace("−","-").replace(",",".");
@@ -68,7 +76,7 @@ public class MainActivity extends Activity {
     if(q.matches(".*(как дела|как ты|как настроение).*"))return "Всё хорошо, спасибо 🙂 Готов помочь тебе. А у тебя как дела?";
     if(q.matches(".*(спасибо|благодарю|красава|молодец).*"))return "Пожалуйста! 🙂 Если хочешь, разберём ещё одну задачу.";
     if(q.matches(".*\\b(пока|до свидания|увидимся|bye)\\b.*"))return "Пока! Удачи тебе 👋 Возвращайся, когда понадобится помощь.";
-    if(q.matches(".*(кто ты|как тебя зовут|ты кто).*"))return "Я Helio — школьный помощник. Сейчас умею считать выражения и разбирать некоторые уравнения; свободный разговорный ИИ ещё не подключён.";
+    if(q.matches(".*(кто ты|как тебя зовут|ты кто).*"))return "Я Helio — школьный помощник. Для математических вычислений использую SymPy.";
     if(q.matches(".*(помоги|что ты умеешь|что умеешь|помощь).*"))return "Могу посчитать выражение, решить простое линейное или квадратное уравнение и помочь с площадью круга или квадрата. Примеры: 2214÷(12²+15²)+36 или 3x+5=20.";
     return null;
   }
