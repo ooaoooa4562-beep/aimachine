@@ -1,0 +1,4 @@
+training/output/
+training/checkpoints/
+__pycache__/
+*.py[cod]

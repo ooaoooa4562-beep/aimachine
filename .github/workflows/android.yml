@@ -4,7 +4,9 @@ on:
     branches: [ main ]
     paths-ignore:
       - 'web/**'
+      - 'training/**'
       - '.github/workflows/pages.yml'
+      - '.github/workflows/android.yml'
   workflow_dispatch:
 permissions:
   contents: write
