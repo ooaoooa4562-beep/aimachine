@@ -98,8 +98,8 @@ def write_jsonl(path: Path, examples: list[dict[str, Any]]) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-train", type=int, default=2500)
-    parser.add_argument("--max-validation", type=int, default=200)
+    parser.add_argument("--max-train", type=int, default=50000)
+    parser.add_argument("--max-validation", type=int, default=2000)
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
@@ -130,3 +130,4 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
+

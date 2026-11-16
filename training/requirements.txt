@@ -1,6 +1,8 @@
-transformers>=4.51.0
+torch
+transformers
+tokenizers
 datasets
-trl
-peft
 accelerate
-bitsandbytes
+optimum[onnx]
+onnxruntime
+

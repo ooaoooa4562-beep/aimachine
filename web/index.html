@@ -43,8 +43,8 @@
           <label class="select-wrap model-select">
             <span class="select-icon" aria-hidden="true">✦</span>
             <select id="modelSelect" aria-label="Режим объяснения">
-              <option value="Helio Gen 1 Flash" title="Qwen3 0.6B · загрузка около 570 МБ">Helio Gen 1 Flash</option>
-              <option value="Helio Gen 1 Pro" title="Qwen3 1.7B · загрузка около 1,43 ГБ">Helio Gen 1 Pro</option>
+              <option value="Helio Gen 1 Flash" title="Собственная компактная модель Helio">Helio Gen 1 Flash</option>
+              <option value="Helio Gen 1 Pro" title="Собственная расширенная модель Helio">Helio Gen 1 Pro</option>
             </select>
             <span class="chevron" aria-hidden="true">⌄</span>
           </label>
@@ -60,9 +60,9 @@
 
       <form class="composer-wrap" id="composer">
         <div class="suggestions" id="suggestions" aria-label="Примеры запросов">
-          <button type="button" class="suggestion">2214÷(12²+15²)+36</button>
           <button type="button" class="suggestion">Реши 3x + 5 = 20</button>
-          <button type="button" class="suggestion">Площадь круга, радиус 5</button>
+          <button type="button" class="suggestion">Привет! Как проходит день?</button>
+          <button type="button" class="suggestion">Расскажи короткий необычный факт</button>
         </div>
         <div class="composer">
           <textarea id="prompt" rows="1" placeholder="Напиши вопрос или продиктуй его…" aria-label="Сообщение"></textarea>
@@ -74,10 +74,11 @@
           </button>
         </div>
         <div class="voice-status" id="voiceStatus" role="status" aria-live="polite" hidden></div>
-        <div class="composer-note">Голосовой ввод · Flash загружает около 570 МБ, Pro — около 1,43 ГБ при первом запуске</div>
+        <div class="composer-note">Точные математические задачи решает SymPy · свободный разговор работает после добавления собственных весов Helio</div>
       </form>
     </main>
   </div>
   <script type="module" src="./app.js"></script>
 </body>
 </html>
+

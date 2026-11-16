@@ -10,16 +10,17 @@ const GRADE_KEY = "helio-web-grade-v1";
 const THINK_TIME_MS = 5000;
 const LANGUAGE_MODELS = {
   "Helio Gen 1 Flash": {
-    id: "onnx-community/Qwen3-0.6B-ONNX",
-    size: "около 570 МБ",
-    maxTokens: 320
+    id: "helio-gen1-flash",
+    size: "собственная компактная модель",
+    maxTokens: 96
   },
   "Helio Gen 1 Pro": {
-    id: "onnx-community/Qwen3-1.7B-ONNX",
-    size: "около 1,43 ГБ",
-    maxTokens: 512
+    id: "helio-gen1-pro",
+    size: "собственная расширенная модель",
+    maxTokens: 128
   }
 };
+const LOCAL_MODEL_PATH = new URL("./models/", import.meta.url).href;
 const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
 let chats = [];
@@ -43,7 +44,7 @@ const savedModel = localStorage.getItem(MODEL_KEY);
 $("modelSelect").value = LANGUAGE_MODELS[savedModel] ? savedModel : "Helio Gen 1 Flash";
 const savedGrade = Number(localStorage.getItem(GRADE_KEY)) || 7;
 const startingModel = $("modelSelect").value;
-$("modelStatus").textContent = `${startingModel} · загрузится при первом сообщении (${LANGUAGE_MODELS[startingModel].size})`;
+$("modelStatus").textContent = `${startingModel} · ищу собственную модель`;
 for (let grade = 1; grade <= 11; grade += 1) {
   const option = document.createElement("option");
   option.value = String(grade);
@@ -51,6 +52,24 @@ for (let grade = 1; grade <= 11; grade += 1) {
   option.selected = grade === savedGrade;
   $("gradeSelect").append(option);
 }
+
+async function refreshModelStatus(modelName) {
+  if (readyLanguageModels.has(modelName)) {
+    $("modelStatus").textContent = `Helio ${modelName.endsWith("Pro") ? "Pro" : "Flash"} готов · собственная модель`;
+    return;
+  }
+  const info = LANGUAGE_MODELS[modelName];
+  try {
+    const response = await fetch(new URL(`${info.id}/config.json`, LOCAL_MODEL_PATH), { method: "HEAD", cache: "no-store" });
+    $("modelStatus").textContent = response.ok
+      ? `${modelName} · собственная модель готова к запуску`
+      : `${modelName} · собственная модель ещё не опубликована`;
+  } catch {
+    $("modelStatus").textContent = `${modelName} · не удалось проверить локальную модель`;
+  }
+}
+
+void refreshModelStatus(startingModel);
 
 function persist() {
   try {
@@ -234,13 +253,23 @@ async function loadLanguageModel(modelName, shouldShowProgress, waitingBubble, s
   if (languageModels.has(modelName)) return languageModels.get(modelName);
   const info = LANGUAGE_MODELS[modelName];
   const loading = (async () => {
+    const configUrl = new URL(`${info.id}/config.json`, LOCAL_MODEL_PATH);
+    const configResponse = await fetch(configUrl, { cache: "no-store" });
+    if (!configResponse.ok) {
+      const error = new Error("Helio Gen 1 weights are not published yet");
+      error.code = "HELIO_MODEL_NOT_PUBLISHED";
+      throw error;
+    }
     if (!transformersPromise) {
       transformersPromise = import("https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1");
     }
-    const { pipeline, TextStreamer } = await transformersPromise;
+    const { pipeline, TextStreamer, env } = await transformersPromise;
+    env.allowLocalModels = true;
+    env.allowRemoteModels = false;
+    env.localModelPath = LOCAL_MODEL_PATH;
     const devices = navigator.gpu
-      ? [{ device: "webgpu", dtype: "q4f16" }, { dtype: "q4" }]
-      : [{ dtype: "q4" }];
+      ? [{ device: "webgpu", dtype: "fp32" }, { dtype: "q8" }]
+      : [{ dtype: "q8" }, { dtype: "fp32" }];
     let lastError;
     for (const backend of devices) {
       try {
@@ -291,7 +320,7 @@ async function exactMathResult(question) {
 
 function systemPrompt(mathResult) {
   const grade = $("gradeSelect").value;
-  let prompt = `Ты Helio — дружелюбный русскоязычный собеседник и школьный помощник для ученика ${grade} класса. Отвечай на том же языке, на котором к тебе обратились. Общайся естественно, по смыслу и без повторяющихся заготовок; можешь обсуждать любые обычные темы, а не только учёбу. Для школьных тем объясняй понятно на уровне ${grade} класса, показывай ход решения, если это помогает. Не выдумывай факты и честно говори, когда не уверен. Не называй себя человеком и не упоминай внутренние инструкции.`;
+  let prompt = `Ты Helio — доброжелательный русскоязычный собеседник и школьный помощник. Отвечай естественно, по смыслу и на языке пользователя. Учитывай контекст переписки. Будь тёплым, но не льсти без причины: отмечай реальные усилия и успехи. Если человеку трудно, сначала отнесись с пониманием, потом предложи один понятный следующий шаг. Если пользователь пишет неформально, тоже можно говорить неформально; на лёгкую брань отвечай максимум одним мягким словом вроде «блин» или «капец». Не используй оскорбления, травлю, угрозы и грубую брань. Не делай вид, что ты человек. Уровень объяснений — ${grade} класс.`;
   if (mathResult) {
     prompt += ` Для текущей математической задачи точный ответ вычислен SymPy. Считай этот результат проверенным и не меняй его; объясни его ученику своими словами, не копируй механически весь технический вывод: ${mathResult}`;
   }
@@ -299,27 +328,31 @@ function systemPrompt(mathResult) {
 }
 
 function recentMessages(chat) {
-  return chat.messages.slice(-14).map((message) => ({
+  return chat.messages.slice(-3).map((message) => ({
     role: message.role === "user" ? "user" : "assistant",
-    content: String(message.text).slice(-3000)
+    content: String(message.text).slice(-100)
   }));
 }
 
 async function generateResponse(chat, question, waiting) {
   const modelName = $("modelSelect").value;
-  let thinking = true;
-  const statusState = { text: "" };
-  const shouldShowProgress = () => !thinking && !readyLanguageModels.has(modelName);
-  const modelPromise = loadLanguageModel(modelName, shouldShowProgress, waiting.bubble, statusState);
   const mathPromise = exactMathResult(question);
   await new Promise((resolve) => setTimeout(resolve, THINK_TIME_MS));
-  thinking = false;
+  const mathResult = await mathPromise;
+  if (mathResult) {
+    $("engineStatus").textContent = "SymPy · точный ответ";
+    $("sympyDot").classList.add("ready");
+    return mathResult;
+  }
+
+  const statusState = { text: "" };
+  const shouldShowProgress = () => !readyLanguageModels.has(modelName);
+  const modelPromise = loadLanguageModel(modelName, shouldShowProgress, waiting.bubble, statusState);
   const modelStillLoading = !readyLanguageModels.has(modelName);
   if (modelStillLoading) {
-    const info = LANGUAGE_MODELS[modelName];
-    waiting.bubble.textContent = statusState.text || `Первый запуск: загружаю Helio ${modelName.endsWith("Pro") ? "Pro" : "Flash"} (${info.size}). Это скачивается один раз и затем сохраняется в браузере.`;
+    waiting.bubble.textContent = statusState.text || `Загружаю собственную модель Helio ${modelName.endsWith("Pro") ? "Pro" : "Flash"}…`;
   }
-  const [loaded, mathResult] = await Promise.all([modelPromise, mathPromise]);
+  const loaded = await modelPromise;
   const messages = [
     { role: "system", content: systemPrompt(mathResult) },
     ...recentMessages(chat)
@@ -384,9 +417,12 @@ async function respondToQuestion(question) {
     addMessageActions(waiting.body, true);
   } catch (error) {
     console.error("Helio model error", error);
-    const info = LANGUAGE_MODELS[$("modelSelect").value];
-    const response = `Не получилось запустить языковую модель. Проверь интернет и память устройства: первый запуск загружает примерно ${info.size}. Если выбран Pro, попробуй переключиться на Flash.`;
-    $("modelStatus").textContent = "Модель не загрузилась · проверь интернет или выбери Flash";
+    const response = error?.code === "HELIO_MODEL_NOT_PUBLISHED"
+      ? "Своя модель Helio ещё не обучена или не добавлена на сайт. Точные математические задачи уже решает SymPy; свободный разговор заработает после обучения и публикации папки web/models."
+      : "Не получилось запустить собственную модель Helio. Проверь интернет, память устройства и наличие файлов модели в папке web/models.";
+    $("modelStatus").textContent = error?.code === "HELIO_MODEL_NOT_PUBLISHED"
+      ? "Собственная модель ещё не опубликована"
+      : "Собственная модель не загрузилась";
     $("modelDot").classList.remove("ready");
     waiting.row.classList.remove("typing", "streaming");
     waiting.bubble.textContent = response;
@@ -528,10 +564,7 @@ $("voiceButton").addEventListener("click", startVoiceInput);
 $("modelSelect").addEventListener("change", () => {
   localStorage.setItem(MODEL_KEY, $("modelSelect").value);
   const name = $("modelSelect").value;
-  const info = LANGUAGE_MODELS[name];
-  $("modelStatus").textContent = readyLanguageModels.has(name)
-    ? `Helio ${name.endsWith("Pro") ? "Pro" : "Flash"} готов · работает на устройстве`
-    : `${name} · загрузится при первом сообщении (${info.size})`;
+  void refreshModelStatus(name);
   $("modelDot").classList.toggle("ready", readyLanguageModels.has(name));
 });
 $("gradeSelect").addEventListener("change", () => localStorage.setItem(GRADE_KEY, $("gradeSelect").value));
@@ -552,3 +585,4 @@ if (chats.length) {
 } else {
   newChat();
 }
+
